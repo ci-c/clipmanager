@@ -43,29 +43,35 @@ def main():
 
 connection = sqlite3.connect("bufer.db")
 cursor = connection.cursor()
-cursor.execute("""--sql
+cursor.execute(
+    """--sql
         CREATE TABLE IF NOT EXISTS bufer(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            binary_data BLOB,
-            date_time REAL,
-            mime_types TEXT
+            binary_data BLOB UNIQUE,
+            date_time REAL
         );
-""")
-cursor.execute("""--sql
+"""
+)
+cursor.execute(
+    """--sql
         CREATE TABLE IF NOT EXISTS types(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT,
             subname TEXT,
             parametr TEXT,
-            argument TEXT
+            argument TEXT,
+            UNIQUE ( name, subname, parametr, argument)
         );
-""")
-cursor.execute("""--sql
+"""
+)
+cursor.execute(
+    """--sql
         CREATE TABLE IF NOT EXISTS  bufer_to_types(
             id_type INTEGER,
             id_bufer INTEGER
         );
-""")
+"""
+)
 connection.commit()
 
 
@@ -115,21 +121,22 @@ def store():
     if data_in_stdin_equal_data_in_db:
         pass
     else:
-        cursor.execute("""--sql
-            INSERT INTO bufer (binary_data, date_time, mime_types ) VALUES (?, ?, ?)""",
-            (data_in_stdin, datetime.datetime.now().timestamp(), n_types.__str__()),
+        cursor.execute(
+            """--sql
+            REPLACE INTO bufer (binary_data, date_time) VALUES (?, ?)""",
+            (data_in_stdin, datetime.datetime.now().timestamp())
         )
     connection.commit()
 
 
 @main.command()
 def pick():
-    id = sys.stdin.buffer.read()
+    id = int(sys.stdin.buffer.read())
 
 
 @main.command()
 def get_history():
-    cursor.execute("--sql SELECT * FROM bufer;")
+    cursor.execute("SELECT * FROM bufer;")
     results = cursor.fetchall()
     history = ""
     for result in results:
@@ -142,21 +149,29 @@ def get_history():
             + datetime.datetime.fromtimestamp(result[2]).isoformat()
             + "\n"
         )
+    history = history + f"Count: {len(results)}" + "\n"
     sys.stdout.buffer.write(history.encode("utf-8"))
 
 
 @main.command()
 def remove():
-    id = sys.stdin.buffer.read()
-    cursor.execute("""--sql
+    id = int(sys.stdin.buffer.read())
+    cursor.execute(
+        """--sql
                    SELECT * FROM bufer
                    WHERE id = ?;
-                   """, (id))
+                   """,
+        (id,),
+    )
     print(f"Removed {len(cursor.fetchall())} items.")
-    cursor.execute("""--sql
+    cursor.execute(
+        """--sql
                    DELETE FROM bufer
                    WHERE id = ?;
-                   """, (id))
+                   """,
+        (id,),
+    )
+    connection.commit()
 
 
 if __name__ == "__main__":
