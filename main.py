@@ -44,12 +44,14 @@ def main():
 connection = sqlite3.connect("bufer.db")
 cursor = connection.cursor()
 cursor.execute("""--sql
-    CREATE TABLE IF NOT EXISTS bufer(
+        CREATE TABLE IF NOT EXISTS bufer(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             binary_data BLOB,
             date_time REAL,
             mime_types TEXT
         );
+""")
+cursor.execute("""--sql
         CREATE TABLE IF NOT EXISTS types(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT,
@@ -57,13 +59,13 @@ cursor.execute("""--sql
             parametr TEXT,
             argument TEXT
         );
+""")
+cursor.execute("""--sql
         CREATE TABLE IF NOT EXISTS  bufer_to_types(
             id_type INTEGER,
             id_bufer INTEGER
         );
-            
-"""
-)
+""")
 connection.commit()
 
 
@@ -144,8 +146,17 @@ def get_history():
 
 
 @main.command()
-def remove(id):
+def remove():
     id = sys.stdin.buffer.read()
+    cursor.execute("""--sql
+                   SELECT * FROM bufer
+                   WHERE id = ?;
+                   """, (id))
+    print(f"Removed {len(cursor.fetchall())} items.")
+    cursor.execute("""--sql
+                   DELETE FROM bufer
+                   WHERE id = ?;
+                   """, (id))
 
 
 if __name__ == "__main__":
