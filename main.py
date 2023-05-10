@@ -55,7 +55,7 @@ cursor.execute(
         CREATE TABLE IF NOT EXISTS bufer(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             binary_data BLOB UNIQUE,
-            date_time REAL
+            date_time REAL UNIQUE
         );
 """
 )
@@ -143,18 +143,21 @@ def store():
     nn_types = []
     for n_type in n_types:
         nn_types.append((date_time, n_type[0], n_type[1], n_type[2], n_type[3]))
+    print(nn_types)
     cursor.executemany(
         """--sql
             INSERT OR IGNORE INTO bufer_to_types (bufer_id, types_id) VALUES (
                 (
                     SELECT id FROM bufer
                     WHERE date_time = ?
+                    LIMIT 1
                 ), (
                     SELECT id FROM types
                     WHERE name = ? AND
                        subname = ? AND
                       parametr = ? AND
                       argument = ?
+                    LIMIT 1
                 )
             );""",
         nn_types,
