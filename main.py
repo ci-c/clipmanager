@@ -1,3 +1,5 @@
+#!/usr/bin/python3
+
 import subprocess
 import sys
 from base64 import standard_b64encode
@@ -30,10 +32,15 @@ def write_chunked(**cmd):
         cmd.clear()
 
 
-def execute_command(command: list[str], stdin=subprocess.PIPE) -> bytes:
-    return subprocess.run(
-        command, stdin=stdin, stdout=subprocess.PIPE, text=False
-    ).stdout
+def execute_command(command: list[str], input_in=None, stdin=subprocess.PIPE) -> bytes:
+    if input_in is not None:
+        return subprocess.run(
+            command, stdout=subprocess.PIPE, text=False, input=input_in
+        ).stdout
+    else:
+        return subprocess.run(
+            command, stdin=stdin, stdout=subprocess.PIPE, text=False
+        ).stdout
 
 
 @click.group()
@@ -60,15 +67,19 @@ cursor.execute(
             subname TEXT,
             parametr TEXT,
             argument TEXT,
-            UNIQUE ( name, subname, parametr, argument)
+            UNIQUE (name, subname, parametr, argument) ON CONFLICT REPLACE
         );
 """
 )
 cursor.execute(
     """--sql
         CREATE TABLE IF NOT EXISTS  bufer_to_types(
-            id_type INTEGER,
-            id_bufer INTEGER
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            types_id INTEGER NOT NULL,
+            bufer_id INTEGER NOT NULL,
+            FOREIGN KEY(types_id)  REFERENCES types(id) ON DELETE RESTRICT ON UPDATE CASCADE,
+            FOREIGN KEY(bufer_id)  REFERENCES bufer(id) ON DELETE CASCADE ON UPDATE CASCADE,
+            UNIQUE (types_id, bufer_id) ON CONFLICT REPLACE
         );
 """
 )
@@ -92,14 +103,7 @@ def store():
             parametrs = [None, None]
         else:
             parametrs = elements[1].split("=")
-        n_types.append(
-            {
-                "type": mime_types[0],
-                "subtype": mime_types[1],
-                "parametr": parametrs[0],
-                "argument": parametrs[1],
-            }
-        )
+        n_types.append((mime_types[0], mime_types[1], parametrs[0], parametrs[1]))
     # sys.stdout.write(execute_command(""))
     # execute_command(["wl-copy"], sys.stdin)
     if 1:
@@ -107,50 +111,135 @@ def store():
         if "image/png" in types:
             write_chunked(a="T", f=100, data=data_in_stdin)
         else:
-            print(data_in_stdin)
+            pass
+            #print(data_in_stdin)
     # sys.stdout.buffer.write(sys.stdin.buffer.read())
-    cursor.execute("--sql SELECT * FROM bufer;")
-    results = cursor.fetchall()
-    if len(results) > 30:
-        pass
-    data_in_stdin_equal_data_in_db: bool = False
-    for result in results:
-        if result[1] == data_in_stdin:
-            data_in_stdin_equal_data_in_db = True
-            break
-    if data_in_stdin_equal_data_in_db:
-        pass
-    else:
-        cursor.execute(
-            """--sql
+    limit = 30
+    cursor.execute(
+        """--sql
+            DELETE FROM bufer
+            WHERE id NOT IN (
+                SELECT id
+                FROM bufer
+                WHERE id IN
+                    (SELECT id
+                    FROM bufer
+                    ORDER BY date_time DESC
+                    LIMIT ?));
+                   """,
+        (limit,),
+    )
+    connection.commit()
+    date_time = datetime.datetime.now().timestamp()
+    cursor.execute(
+        """--sql
             REPLACE INTO bufer (binary_data, date_time) VALUES (?, ?)""",
-            (data_in_stdin, datetime.datetime.now().timestamp())
-        )
+        (data_in_stdin, date_time),
+    )
+    cursor.executemany(
+        """--sql
+            REPLACE INTO types (name, subname, parametr, argument) VALUES (?, ?, ?, ?)""",
+        n_types,
+    )
+    nn_types = []
+    for n_type in n_types:
+        nn_types.append((date_time, n_type[0], n_type[1], n_type[2], n_type[3],
+                         date_time, n_type[0], n_type[1], n_type[2], n_type[3]))
+    print()
+    cursor.executemany(
+        """--sql
+            REPLACE INTO bufer_to_types (bufer_id, types_id) VALUES (
+                (
+                    SELECT bufer.id FROM bufer, types
+                    WHERE bufer.date_time = ? AND types.name = ? AND types.subname = ? AND types.parametr = ? AND types.argument = ?
+                ), (
+                    SELECT types.id FROM bufer, types
+                    WHERE bufer.date_time = ? AND types.name = ? AND types.subname = ? AND types.parametr = ? AND types.argument = ?
+                )
+            );""",
+        nn_types,
+    )
     connection.commit()
 
 
 @main.command()
 def pick():
-    id = int(sys.stdin.buffer.read())
+    i = int(sys.stdin.buffer.read().decode("utf-8")[:-1])
+    cursor.execute(
+        """--sql
+                   SELECT binary_data FROM bufer
+                   WHERE id = ?;""",
+        (i,),
+    )
+    execute_command(["wl-copy"], input_in=cursor.fetchone()[0])
 
 
 @main.command()
-def get_history():
-    cursor.execute("SELECT * FROM bufer;")
+def get_data():
+    i = int(sys.stdin.buffer.read().decode("utf-8")[:-1])
+    cursor.execute(
+        """--sql
+                   SELECT binary_data FROM bufer
+                   WHERE id = ?;""",
+        (i,),
+    )
+    sys.stdout.write(cursor.fetchone()[0])
+
+
+@main.command()
+def get_time():
+    i = int(sys.stdin.buffer.read().decode("utf-8")[:-1])
+    cursor.execute(
+        """--sql
+                   SELECT date_time FROM bufer
+                   WHERE id = ?;""",
+        (i,),
+    )
+    sys.stdout.write(
+        datetime.datetime.fromtimestamp(cursor.fetchone()[0]).__str__().encode("utf-8")
+    )
+
+
+@main.command()
+def get_list():
+    cursor.execute(
+        """--sql
+                   SELECT * FROM bufer
+                   ORDER BY date_time;"""
+    )
     results = cursor.fetchall()
-    history = ""
-    for result in results:
-        history = (
-            history
-            + result[0].__str__()
-            + ". "
-            + result[1].__str__()
-            + "\t| "
-            + datetime.datetime.fromtimestamp(result[2]).isoformat()
-            + "\n"
+    output: str = ""
+
+    for indificator, binary_data, date_time in results:
+        cursor.execute(
+            """--sql
+                   SELECT types.name FROM bufer_to_types, types
+                   WHERE bufer_to_types.bufer_id = ? AND types.id = bufer_to_types.types_id;
+                   """,
+            (indificator,),
         )
-    history = history + f"Count: {len(results)}" + "\n"
-    sys.stdout.buffer.write(history.encode("utf-8"))
+        names = []
+        for (name,) in cursor.fetchall():
+            names.append(name)
+        if "text" in names:
+            output = output + binary_data.decode("utf-8").replace("\n", "").replace(
+                "\t", "󰌒"
+            )
+        else:
+            output = output + names.__str__()
+        output = output + "\n"
+    output = output + f"Count: {len(results)}" + "\n"
+    sys.stdout.buffer.write(output.encode("utf-8"))
+
+
+@main.command()
+def restore():
+    pass
+
+
+@main.command()
+def get_last():
+    pass
 
 
 @main.command()
@@ -158,12 +247,12 @@ def remove():
     id = int(sys.stdin.buffer.read())
     cursor.execute(
         """--sql
-                   SELECT * FROM bufer
+                   SELECT COUNT(*) FROM bufer
                    WHERE id = ?;
                    """,
         (id,),
     )
-    print(f"Removed {len(cursor.fetchall())} items.")
+    print(f"Removed {cursor.fetchall()[0]} items.")
     cursor.execute(
         """--sql
                    DELETE FROM bufer
