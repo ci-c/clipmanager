@@ -63,10 +63,10 @@ cursor.execute(
     """--sql
         CREATE TABLE IF NOT EXISTS types(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT,
-            subname TEXT,
-            parametr TEXT,
-            argument TEXT,
+            name TEXT NOT NULL,
+            subname TEXT NOT NULL,
+            parametr TEXT NOT NULL,
+            argument TEXT NOT NULL,
             UNIQUE (name, subname, parametr, argument) ON CONFLICT REPLACE
         );
 """
@@ -75,8 +75,8 @@ cursor.execute(
     """--sql
         CREATE TABLE IF NOT EXISTS  bufer_to_types(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            types_id INTEGER,
-            bufer_id INTEGER,
+            types_id INTEGER NOT NULL,
+            bufer_id INTEGER NOT NULL,
             FOREIGN KEY(types_id)  REFERENCES types(id) ON DELETE CASCADE ON UPDATE CASCADE,
             FOREIGN KEY(bufer_id)  REFERENCES bufer(id) ON DELETE CASCADE ON UPDATE CASCADE,
             UNIQUE (types_id, bufer_id) ON CONFLICT REPLACE
@@ -100,7 +100,7 @@ def store():
         if len(mime_types) == 1:
             continue
         if len(elements) == 1:
-            parametrs = [None, None]
+            parametrs = ["", ""]
         else:
             parametrs = elements[1].split("=")
         n_types.append((mime_types[0], mime_types[1], parametrs[0], parametrs[1]))
@@ -108,7 +108,7 @@ def store():
     # execute_command(["wl-copy"], sys.stdin)
     if 0:
         print(n_types)
-        if "image/png" in types:
+        if "image" in types:
             write_chunked(a="T", f=100, data=data_in_stdin)
         else:
             pass
@@ -138,7 +138,7 @@ def store():
     )
     cursor.executemany(
         """--sql
-            INSERT  OR REPLACE INTO  types (name, subname, parametr, argument) VALUES (?, ?, ?, ?)""",
+            INSERT  OR IGNORE INTO  types (name, subname, parametr, argument) VALUES (?, ?, ?, ?)""",
         n_types,
     )
     nn_types = []
@@ -147,7 +147,7 @@ def store():
                          date_time, n_type[0], n_type[1], n_type[2], n_type[3]))
     cursor.executemany(
         """--sql
-            INSERT OR REPLACE INTO bufer_to_types (bufer_id, types_id) VALUES (
+            INSERT OR IGNORE INTO bufer_to_types (bufer_id, types_id) VALUES (
                 (
                     SELECT bufer.id FROM bufer, types
                     WHERE bufer.date_time = ? AND
