@@ -1,12 +1,13 @@
 #!/usr/bin/python3
 
+import datetime
+import os
+import sqlite3
 import subprocess
 import sys
 from base64 import standard_b64encode
+
 import click
-import sqlite3
-import datetime
-import os
 
 
 def serialize_gr_command(**cmd):
@@ -43,50 +44,59 @@ def execute_command(command: list[str], input_in=None, stdin=subprocess.PIPE) ->
         ).stdout
 
 
+
 @click.group()
-def main():
-    pass
-
-
-connection = sqlite3.connect("bufer.db")
-cursor = connection.cursor()
-cursor.execute(
-    """--sql
-        CREATE TABLE IF NOT EXISTS bufer(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            binary_data BLOB UNIQUE,
-            date_time REAL UNIQUE
-        );
-"""
-)
-cursor.execute(
-    """--sql
-        CREATE TABLE IF NOT EXISTS types(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            subname TEXT NOT NULL,
-            parametr TEXT NOT NULL,
-            argument TEXT NOT NULL,
-            UNIQUE (name, subname, parametr, argument) ON CONFLICT REPLACE
-        );
-"""
-)
-cursor.execute(
-    """--sql
-        CREATE TABLE IF NOT EXISTS  bufer_to_types(
-            types_id INTEGER NOT NULL,
-            bufer_id INTEGER NOT NULL,
-            FOREIGN KEY(types_id)  REFERENCES types(id) ON DELETE CASCADE ON UPDATE CASCADE,
-            FOREIGN KEY(bufer_id)  REFERENCES bufer(id) ON DELETE CASCADE ON UPDATE CASCADE,
-            UNIQUE (types_id, bufer_id) ON CONFLICT REPLACE
-        );
-"""
-)
-connection.commit()
+@click.option('-p', '--path-sqlite', 'path', default='$HOME/.config/clipmanager/.sqlite')
+@click.pass_context
+def main(ctx):
+    ctx.ensure_object(dict)
+    ctx.obj['path'] = path
+    connection = sqlite3.connect(path)
+    cursor = connection.cursor()
+    ctx.obj['connection'] = connection
+    ctx.obj['cursor'] = cursor
+    cursor.execute(
+        """--sql
+            CREATE TABLE IF NOT EXISTS bufer(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                binary_data BLOB UNIQUE,
+                date_time REAL UNIQUE
+            );
+    """
+    )
+    cursor.execute(
+        """--sql
+            CREATE TABLE IF NOT EXISTS types(
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                subname TEXT NOT NULL,
+                parametr TEXT NOT NULL,
+                argument TEXT NOT NULL,
+                UNIQUE (name, subname, parametr, argument) ON CONFLICT REPLACE
+            );
+    """
+    )
+    cursor.execute(
+        """--sql
+            CREATE TABLE IF NOT EXISTS  bufer_to_types(
+                types_id INTEGER NOT NULL,
+                bufer_id INTEGER NOT NULL,
+                FOREIGN KEY(types_id)  REFERENCES types(id) ON DELETE CASCADE ON UPDATE CASCADE,
+                FOREIGN KEY(bufer_id)  REFERENCES bufer(id) ON DELETE CASCADE ON UPDATE CASCADE,
+                UNIQUE (types_id, bufer_id) ON CONFLICT REPLACE
+            );
+    """
+    )
+    connection.commit()
 
 
 @main.command()
-def store():
+@click.option('-l', '--max-length', 'length', default=30, type=click.types.INT, help='maximum number of entries in the buffer')
+@click.pass_context
+def store(ctx, length):
+    """Store data from STDIN to sqlite database"""
+    conection = ctx.obj['connection']
+    cursor = ctx.obj['cursor']
     data_in_stdin = sys.stdin.buffer.read()
     data_in_system_bufer = execute_command(["wl-paste"])
     types = (
@@ -103,17 +113,7 @@ def store():
         else:
             parametrs = elements[1].split("=")
         n_types.append((mime_types[0], mime_types[1], parametrs[0], parametrs[1]))
-    # sys.stdout.write(execute_command(""))
-    # execute_command(["wl-copy"], sys.stdin)
-    if 0:
-        print(n_types)
-        if "image" in types:
-            write_chunked(a="T", f=100, data=data_in_stdin)
-        else:
-            pass
-            #print(data_in_stdin)
-    # sys.stdout.buffer.write(sys.stdin.buffer.read())
-    limit = 30
+    limit = length(n_types)
     cursor.execute(
         """--sql
             DELETE FROM bufer
@@ -143,7 +143,6 @@ def store():
     nn_types = []
     for n_type in n_types:
         nn_types.append((date_time, n_type[0], n_type[1], n_type[2], n_type[3]))
-    print(nn_types)
     cursor.executemany(
         """--sql
             INSERT OR IGNORE INTO bufer_to_types (bufer_id, types_id) VALUES (
@@ -166,7 +165,11 @@ def store():
 
 
 @main.command()
-def pick():
+@click.pass_context
+def pick(ctx):
+    """Copies an entry with the specified index to the system clipboard"""
+    conection = ctx.obj['connection']
+    cursor = ctx.obj['cursor']
     i = int(sys.stdin.buffer.read().decode("utf-8")[:-1])
     cursor.execute(
         """--sql
@@ -178,7 +181,10 @@ def pick():
 
 
 @main.command()
-def get_data():
+@click.pass_context
+def get_data(ctx):
+    conection = ctx.obj['connection']
+    cursor = ctx.obj['cursor']
     i = int(sys.stdin.buffer.read().decode("utf-8")[:-1])
     cursor.execute(
         """--sql
@@ -190,7 +196,10 @@ def get_data():
 
 
 @main.command()
-def get_time():
+@click.pass_context
+def get_time(ctx):
+    conection = ctx.obj['connection']
+    cursor = ctx.obj['cursor']
     i = int(sys.stdin.buffer.read().decode("utf-8")[:-1])
     cursor.execute(
         """--sql
@@ -199,12 +208,15 @@ def get_time():
         (i,),
     )
     sys.stdout.write(
-        datetime.datetime.fromtimestamp(cursor.fetchone()[0]).__str__().encode("utf-8")
+        datetime.datetime.fromtimestamp(cursor.fetchone()[0]).isoformat().__str__().encode("utf-8")
     )
 
 
 @main.command()
-def get_list():
+@click.pass_context
+def get_list(ctx):
+    conection = ctx.obj['connection']
+    cursor = ctx.obj['cursor']
     cursor.execute(
         """--sql
                    SELECT * FROM bufer
@@ -231,22 +243,35 @@ def get_list():
         else:
             output = output + names.__str__()
         output = output + "\n"
-    output = output + f"Count: {len(results)}" + "\n"
     sys.stdout.buffer.write(output.encode("utf-8"))
 
 
 @main.command()
-def restore():
-    pass
+@click.pass_context
+def restore(ctx):
+    conection = ctx.obj['connection']
+    cursor = ctx.obj['cursor']
 
 
 @main.command()
-def get_last():
-    pass
+@click.pass_context
+def get_last(ctx):
+    conection = ctx.obj['connection']
+    cursor = ctx.obj['cursor']
 
 
 @main.command()
-def remove():
+@click.pass_context
+def swap(ctx):
+    conection = ctx.obj['connection']
+    cursor = ctx.obj['cursor']
+
+
+@main.command()
+@click.pass_context
+def remove(ctx):
+    conection = ctx.obj['connection']
+    cursor = ctx.obj['cursor']
     id = int(sys.stdin.buffer.read())
     cursor.execute(
         """--sql
@@ -267,4 +292,4 @@ def remove():
 
 
 if __name__ == "__main__":
-    main()
+    main(obj={})
