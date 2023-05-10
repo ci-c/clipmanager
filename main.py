@@ -74,7 +74,6 @@ cursor.execute(
 cursor.execute(
     """--sql
         CREATE TABLE IF NOT EXISTS  bufer_to_types(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
             types_id INTEGER NOT NULL,
             bufer_id INTEGER NOT NULL,
             FOREIGN KEY(types_id)  REFERENCES types(id) ON DELETE CASCADE ON UPDATE CASCADE,
@@ -148,14 +147,14 @@ def store():
         """--sql
             INSERT OR IGNORE INTO bufer_to_types (bufer_id, types_id) VALUES (
                 (
-                    SELECT bufer.id FROM bufer
-                    WHERE bufer.date_time = ?
+                    SELECT id FROM bufer
+                    WHERE date_time = ?
                 ), (
-                    SELECT types.id FROM types
-                               types.name = ? AND
-                            types.subname = ? AND
-                           types.parametr = ? AND
-                           types.argument = ?
+                    SELECT id FROM types
+                    WHERE name = ? AND
+                       subname = ? AND
+                      parametr = ? AND
+                      argument = ?
                 )
             );""",
         nn_types,
