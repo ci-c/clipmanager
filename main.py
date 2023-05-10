@@ -75,9 +75,9 @@ cursor.execute(
     """--sql
         CREATE TABLE IF NOT EXISTS  bufer_to_types(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            types_id INTEGER NOT NULL,
-            bufer_id INTEGER NOT NULL,
-            FOREIGN KEY(types_id)  REFERENCES types(id) ON DELETE RESTRICT ON UPDATE CASCADE,
+            types_id INTEGER,
+            bufer_id INTEGER,
+            FOREIGN KEY(types_id)  REFERENCES types(id) ON DELETE CASCADE ON UPDATE CASCADE,
             FOREIGN KEY(bufer_id)  REFERENCES bufer(id) ON DELETE CASCADE ON UPDATE CASCADE,
             UNIQUE (types_id, bufer_id) ON CONFLICT REPLACE
         );
@@ -106,7 +106,7 @@ def store():
         n_types.append((mime_types[0], mime_types[1], parametrs[0], parametrs[1]))
     # sys.stdout.write(execute_command(""))
     # execute_command(["wl-copy"], sys.stdin)
-    if 1:
+    if 0:
         print(n_types)
         if "image/png" in types:
             write_chunked(a="T", f=100, data=data_in_stdin)
@@ -133,28 +133,35 @@ def store():
     date_time = datetime.datetime.now().timestamp()
     cursor.execute(
         """--sql
-            REPLACE INTO bufer (binary_data, date_time) VALUES (?, ?)""",
+            INSERT OR REPLACE INTO bufer (binary_data, date_time) VALUES (?, ?)""",
         (data_in_stdin, date_time),
     )
     cursor.executemany(
         """--sql
-            REPLACE INTO types (name, subname, parametr, argument) VALUES (?, ?, ?, ?)""",
+            INSERT  OR REPLACE INTO  types (name, subname, parametr, argument) VALUES (?, ?, ?, ?)""",
         n_types,
     )
     nn_types = []
     for n_type in n_types:
         nn_types.append((date_time, n_type[0], n_type[1], n_type[2], n_type[3],
                          date_time, n_type[0], n_type[1], n_type[2], n_type[3]))
-    print()
     cursor.executemany(
         """--sql
-            REPLACE INTO bufer_to_types (bufer_id, types_id) VALUES (
+            INSERT OR REPLACE INTO bufer_to_types (bufer_id, types_id) VALUES (
                 (
                     SELECT bufer.id FROM bufer, types
-                    WHERE bufer.date_time = ? AND types.name = ? AND types.subname = ? AND types.parametr = ? AND types.argument = ?
+                    WHERE bufer.date_time = ? AND
+                               types.name = ? AND
+                            types.subname = ? AND
+                           types.parametr = ? AND
+                           types.argument = ?
                 ), (
                     SELECT types.id FROM bufer, types
-                    WHERE bufer.date_time = ? AND types.name = ? AND types.subname = ? AND types.parametr = ? AND types.argument = ?
+                    WHERE bufer.date_time = ? AND
+                               types.name = ? AND
+                            types.subname = ? AND
+                           types.parametr = ? AND
+                           types.argument = ?
                 )
             );""",
         nn_types,
