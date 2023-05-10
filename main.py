@@ -143,21 +143,15 @@ def store():
     )
     nn_types = []
     for n_type in n_types:
-        nn_types.append((date_time, n_type[0], n_type[1], n_type[2], n_type[3],
-                         date_time, n_type[0], n_type[1], n_type[2], n_type[3]))
+        nn_types.append((date_time, n_type[0], n_type[1], n_type[2], n_type[3]))
     cursor.executemany(
         """--sql
             INSERT OR IGNORE INTO bufer_to_types (bufer_id, types_id) VALUES (
                 (
-                    SELECT bufer.id FROM bufer, types
-                    WHERE bufer.date_time = ? AND
-                               types.name = ? AND
-                            types.subname = ? AND
-                           types.parametr = ? AND
-                           types.argument = ?
+                    SELECT bufer.id FROM bufer
+                    WHERE bufer.date_time = ?
                 ), (
-                    SELECT types.id FROM bufer, types
-                    WHERE bufer.date_time = ? AND
+                    SELECT types.id FROM types
                                types.name = ? AND
                             types.subname = ? AND
                            types.parametr = ? AND
