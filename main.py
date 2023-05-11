@@ -45,18 +45,23 @@ def execute_command(command: list[str], input_in=None, stdin=subprocess.PIPE) ->
         ).stdout
 
 
-
 @click.group()
-@click.option('-p', '--path-sqlite', 'path', default='~/.config/clipmanager/bufer.db', help="path to sqlite database")
+@click.option(
+    "-p",
+    "--path-sqlite",
+    "path",
+    default="~/.config/clipmanager/bufer.db",
+    help="path to sqlite database",
+)
 @click.pass_context
 def main(ctx, path):
     path = pathlib.Path(path)
     ctx.ensure_object(dict)
-    ctx.obj['path'] = path
+    ctx.obj["path"] = path
     connection = sqlite3.connect(path)
     cursor = connection.cursor()
-    ctx.obj['connection'] = connection
-    ctx.obj['cursor'] = cursor
+    ctx.obj["connection"] = connection
+    ctx.obj["cursor"] = cursor
     cursor.execute(
         """--sql
             CREATE TABLE IF NOT EXISTS bufer(
@@ -93,12 +98,19 @@ def main(ctx, path):
 
 
 @main.command()
-@click.option('-l', '--max-length', 'length', default=30, type=click.types.INT, help='maximum number of entries in the buffer')
+@click.option(
+    "-l",
+    "--max-length",
+    "length",
+    default=30,
+    type=click.types.INT,
+    help="maximum number of entries in the buffer",
+)
 @click.pass_context
 def store(ctx, length):
     """Store data from STDIN to sqlite database"""
-    conection = ctx.obj['connection']
-    cursor = ctx.obj['cursor']
+    connection = ctx.obj["connection"]
+    cursor = ctx.obj["cursor"]
     data_in_stdin = sys.stdin.buffer.read()
     data_in_system_bufer = execute_command(["wl-paste"])
     types = (
@@ -115,8 +127,8 @@ def store(ctx, length):
         else:
             parametrs = elements[1].split("=")
         n_types.append((mime_types[0], mime_types[1], parametrs[0], parametrs[1]))
-    limit = length(n_types)
-    cursor.execute(
+    limit = length
+    cursor.execute(  # delete old data from buffer
         """--sql
             DELETE FROM bufer
             WHERE id NOT IN (
@@ -132,20 +144,23 @@ def store(ctx, length):
     )
     connection.commit()
     date_time = datetime.datetime.now().timestamp()
-    cursor.execute(
+    cursor.execute(  # insert binary_data
         """--sql
             INSERT OR REPLACE INTO bufer (binary_data, date_time) VALUES (?, ?)""",
         (data_in_stdin, date_time),
     )
-    cursor.executemany(
+    cursor.executemany(  # insert types
         """--sql
             INSERT  OR IGNORE INTO  types (name, subname, parametr, argument) VALUES (?, ?, ?, ?)""",
         n_types,
     )
     nn_types = []
+    is_not_text = True
     for n_type in n_types:
+        if n_type[0] == "text":
+            is_not_text = False
         nn_types.append((date_time, n_type[0], n_type[1], n_type[2], n_type[3]))
-    cursor.executemany(
+    cursor.executemany(  # insert relations
         """--sql
             INSERT OR IGNORE INTO bufer_to_types (bufer_id, types_id) VALUES (
                 (
@@ -164,15 +179,25 @@ def store(ctx, length):
         nn_types,
     )
     connection.commit()
-
+    if is_not_text:
+        cursor.execute(  # search id
+            """--sql 
+                       SELECT id FROM bufer
+                       WHERE date_time = ?
+                       LIMIT 1
+                       """,
+            (date_time,),
+        )
+        indificator = cursor.fetchone()[0]
+        execute_command(["notify-send", "--app-name=clipmanager","Copied", f"id: {indificator}, types: {types.__str__()}"]) 
 
 @main.command()
 @click.pass_context
 def pick(ctx):
     """Copies an entry with the specified index to the system clipboard"""
-    conection = ctx.obj['connection']
-    cursor = ctx.obj['cursor']
-    i = int(sys.stdin.buffer.read().decode("utf-8")[:-1])
+    connection = ctx.obj["connection"]
+    cursor = ctx.obj["cursor"]
+    i = int(sys.stdin.buffer.read().decode("utf-8").split(".")[0])
     cursor.execute(
         """--sql
                    SELECT binary_data FROM bufer
@@ -185,8 +210,8 @@ def pick(ctx):
 @main.command()
 @click.pass_context
 def get_data(ctx):
-    conection = ctx.obj['connection']
-    cursor = ctx.obj['cursor']
+    connection = ctx.obj["connection"]
+    cursor = ctx.obj["cursor"]
     i = int(sys.stdin.buffer.read().decode("utf-8")[:-1])
     cursor.execute(
         """--sql
@@ -200,8 +225,8 @@ def get_data(ctx):
 @main.command()
 @click.pass_context
 def get_time(ctx):
-    conection = ctx.obj['connection']
-    cursor = ctx.obj['cursor']
+    connection = ctx.obj["connection"]
+    cursor = ctx.obj["cursor"]
     i = int(sys.stdin.buffer.read().decode("utf-8")[:-1])
     cursor.execute(
         """--sql
@@ -210,15 +235,18 @@ def get_time(ctx):
         (i,),
     )
     sys.stdout.write(
-        datetime.datetime.fromtimestamp(cursor.fetchone()[0]).isoformat().__str__().encode("utf-8")
+        datetime.datetime.fromtimestamp(cursor.fetchone()[0])
+        .isoformat()
+        .__str__()
+        .encode("utf-8")
     )
 
 
 @main.command()
 @click.pass_context
 def get_list(ctx):
-    conection = ctx.obj['connection']
-    cursor = ctx.obj['cursor']
+    connection = ctx.obj["connection"]
+    cursor = ctx.obj["cursor"]
     cursor.execute(
         """--sql
                    SELECT * FROM bufer
@@ -238,10 +266,17 @@ def get_list(ctx):
         names = []
         for (name,) in cursor.fetchall():
             names.append(name)
+        output = output + f"{indificator}. "
         if "text" in names:
-            output = output + binary_data.decode("utf-8").replace("\n", "").replace("\t", "󰌒")
+            output = output + binary_data.decode("utf-8").replace("\n", "").replace(
+                "\t", "󰌒"
+            )
         else:
-            output = output + names.__str__()
+            output = (
+                output
+                + names.__str__()
+                + datetime.datetime.fromtimestamp(date_time).isoformat(" ")
+            )
         output = output + "\n"
     sys.stdout.buffer.write(output.encode("utf-8"))
 
@@ -249,29 +284,29 @@ def get_list(ctx):
 @main.command()
 @click.pass_context
 def restore(ctx):
-    conection = ctx.obj['connection']
-    cursor = ctx.obj['cursor']
+    connection = ctx.obj["connection"]
+    cursor = ctx.obj["cursor"]
 
 
 @main.command()
 @click.pass_context
 def get_last(ctx):
-    conection = ctx.obj['connection']
-    cursor = ctx.obj['cursor']
+    connection = ctx.obj["connection"]
+    cursor = ctx.obj["cursor"]
 
 
 @main.command()
 @click.pass_context
 def swap(ctx):
-    conection = ctx.obj['connection']
-    cursor = ctx.obj['cursor']
+    connection = ctx.obj["connection"]
+    cursor = ctx.obj["cursor"]
 
 
 @main.command()
 @click.pass_context
 def remove(ctx):
-    conection = ctx.obj['connection']
-    cursor = ctx.obj['cursor']
+    connection = ctx.obj["connection"]
+    cursor = ctx.obj["cursor"]
     id = int(sys.stdin.buffer.read())
     cursor.execute(
         """--sql
