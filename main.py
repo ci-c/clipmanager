@@ -5,6 +5,7 @@ import os
 import sqlite3
 import subprocess
 import sys
+import pathlib
 from base64 import standard_b64encode
 
 import click
@@ -46,9 +47,10 @@ def execute_command(command: list[str], input_in=None, stdin=subprocess.PIPE) ->
 
 
 @click.group()
-@click.option('-p', '--path-sqlite', 'path', default='$HOME/.config/clipmanager/.sqlite')
+@click.option('-p', '--path-sqlite', 'path', default='~/.config/clipmanager/bufer.db', help="path to sqlite database")
 @click.pass_context
-def main(ctx):
+def main(ctx, path):
+    path = pathlib.Path(path)
     ctx.ensure_object(dict)
     ctx.obj['path'] = path
     connection = sqlite3.connect(path)
@@ -237,9 +239,7 @@ def get_list(ctx):
         for (name,) in cursor.fetchall():
             names.append(name)
         if "text" in names:
-            output = output + binary_data.decode("utf-8").replace("\n", "").replace(
-                "\t", "󰌒"
-            )
+            output = output + binary_data.decode("utf-8").replace("\n", "").replace("\t", "󰌒")
         else:
             output = output + names.__str__()
         output = output + "\n"
