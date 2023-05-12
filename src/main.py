@@ -7,8 +7,9 @@ import subprocess
 import sys
 import pathlib
 from base64 import standard_b64encode
-
+import configparser
 import click
+
 
 def execute_command(command: list[str], input_in=None, stdin=subprocess.PIPE) -> bytes:
     if input_in is not None:
@@ -29,16 +30,27 @@ def execute_command(command: list[str], input_in=None, stdin=subprocess.PIPE) ->
     default="~/.config/clipmanager/bufer.db",
     help="path to sqlite database",
 )
+@click.option(
+    "-c",
+    "--path-config",
+    "path_config",
+    default="~/.config/clipmanager/config.ini",
+    help="path to config.ini",
+)
 @click.pass_context
-def main(ctx, path):
+def main(ctx, path, path_config):
+    path_config = pathlib.Path(path_config)
+    config = configparser.ConfigParser()
+    config.read(path_config)
     path = pathlib.Path(path)
     ctx.ensure_object(dict)
     ctx.obj["path"] = path
+    ctx.obj["config"] = config
     connection = sqlite3.connect(path)
     cursor = connection.cursor()
     ctx.obj["connection"] = connection
     ctx.obj["cursor"] = cursor
-    cursor.execute(
+    cursor.execute( # create table "bufer"
         """--sql
             CREATE TABLE IF NOT EXISTS bufer(
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -47,7 +59,7 @@ def main(ctx, path):
             );
     """
     )
-    cursor.execute(
+    cursor.execute(# create table "types"
         """--sql
             CREATE TABLE IF NOT EXISTS types(
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -59,7 +71,7 @@ def main(ctx, path):
             );
     """
     )
-    cursor.execute(
+    cursor.execute(# create table "bufer_to_types"
         """--sql
             CREATE TABLE IF NOT EXISTS  bufer_to_types(
                 types_id INTEGER NOT NULL,
