@@ -1,5 +1,5 @@
 ![license](https://img.shields.io/github/license/ci-c/clipmanager?style=flat-square)
-
+![GitHub top language](https://img.shields.io/github/languages/top/ci-c/clipmanager?style=flat-square)
 # clipmanager
 
 sqlite clipmanager on python

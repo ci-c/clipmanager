@@ -223,7 +223,7 @@ def get_time(ctx):
 def get_list(ctx):
     connection = ctx.obj["connection"]
     cursor = ctx.obj["cursor"]
-    cursor.execute(
+    cursor.execute( #get all
         """--sql
                    SELECT * FROM bufer
                    ORDER BY date_time DESC;"""
@@ -232,17 +232,16 @@ def get_list(ctx):
     output: bytes = b""
 
     for indificator, binary_data, date_time in results:
-        cursor.execute(
+        cursor.execute( #get type's names
             """--sql
-                   SELECT types.name FROM bufer_to_types, types
+                   SELECT types.name, types.subname FROM bufer_to_types, types
                    WHERE bufer_to_types.bufer_id = ? AND types.id = bufer_to_types.types_id;
                    """,
             (indificator,),
         )
         names = []
-        for (name,) in cursor.fetchall():
+        for (name, submane) in cursor.fetchall():
             names.append(name)
-        output = output + f"{indificator}. ".encode("utf-8")
         if "text" in names:
             output = output + binary_data.decode("utf-8").replace("\n", "").replace(
                 "\t", "󰌒"
