@@ -4,7 +4,7 @@ sqlite clipmanager on python
 
 ## Commands
  
-Command  
+Usage  
 
 ### `store`
 STDIN: data
