@@ -1,4 +1,4 @@
-![lisense](https://img.shields.io/github/license/ci-c/clipmanager?style=flat-square)
+![license](https://img.shields.io/github/license/ci-c/clipmanager?style=flat-square)
 
 # clipmanager
 
