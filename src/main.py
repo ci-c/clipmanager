@@ -10,30 +10,6 @@ from base64 import standard_b64encode
 
 import click
 
-
-def serialize_gr_command(**cmd):
-    payload = cmd.pop("payload", None)
-    cmd = ",".join(f"{k}={v}" for k, v in cmd.items())
-    ans = []
-    w = ans.append
-    w(b"\033_G"), w(cmd.encode("ascii"))
-    if payload:
-        w(b";")
-        w(payload)
-    w(b"\033\\")
-    return b"".join(ans)
-
-
-def write_chunked(**cmd):
-    data = standard_b64encode(cmd.pop("data"))
-    while data:
-        chunk, data = data[:4096], data[4096:]
-        m = 1 if data else 0
-        sys.stdout.buffer.write(serialize_gr_command(payload=chunk, m=m, **cmd))
-        sys.stdout.flush()
-        cmd.clear()
-
-
 def execute_command(command: list[str], input_in=None, stdin=subprocess.PIPE) -> bytes:
     if input_in is not None:
         return subprocess.run(
@@ -250,10 +226,10 @@ def get_list(ctx):
     cursor.execute(
         """--sql
                    SELECT * FROM bufer
-                   ORDER BY date_time;"""
+                   ORDER BY date_time DESC;"""
     )
     results = cursor.fetchall()
-    output: str = ""
+    output: bytes = b""
 
     for indificator, binary_data, date_time in results:
         cursor.execute(
@@ -266,19 +242,21 @@ def get_list(ctx):
         names = []
         for (name,) in cursor.fetchall():
             names.append(name)
-        output = output + f"{indificator}. "
+        output = output + f"{indificator}. ".encode("utf-8")
         if "text" in names:
             output = output + binary_data.decode("utf-8").replace("\n", "").replace(
                 "\t", "󰌒"
-            )
+            ).encode("utf-8")
+        #elif "image" in names:
+            #output = output + 
         else:
             output = (
                 output
-                + names.__str__()
-                + datetime.datetime.fromtimestamp(date_time).isoformat(" ")
+                + names.__str__().encode("utf-8")
+                + datetime.datetime.fromtimestamp(date_time).isoformat(" ").encode("utf-8")
             )
-        output = output + "\n"
-    sys.stdout.buffer.write(output.encode("utf-8"))
+        output = output + "\n".encode("utf-8")
+    sys.stdout.buffer.write(output)
 
 
 @main.command()
