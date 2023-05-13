@@ -9,6 +9,7 @@ import pathlib
 from base64 import standard_b64encode
 import configparser
 import click
+import string
 
 
 def execute_command(command: list[str], input_in=None, stdin=subprocess.PIPE) -> bytes:
@@ -50,7 +51,7 @@ def main(ctx, path, path_config):
     cursor = connection.cursor()
     ctx.obj["connection"] = connection
     ctx.obj["cursor"] = cursor
-    cursor.execute( # create table "bufer"
+    cursor.execute(  # create table "bufer"
         """--sql
             CREATE TABLE IF NOT EXISTS bufer(
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -59,7 +60,7 @@ def main(ctx, path, path_config):
             );
     """
     )
-    cursor.execute(# create table "types"
+    cursor.execute(  # create table "types"
         """--sql
             CREATE TABLE IF NOT EXISTS types(
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -71,7 +72,7 @@ def main(ctx, path, path_config):
             );
     """
     )
-    cursor.execute(# create table "bufer_to_types"
+    cursor.execute(  # create table "bufer_to_types"
         """--sql
             CREATE TABLE IF NOT EXISTS  bufer_to_types(
                 types_id INTEGER NOT NULL,
@@ -115,7 +116,7 @@ def store(ctx, length):
         else:
             parametrs = elements[1].split("=")
         n_types.append((mime_types[0], mime_types[1], parametrs[0], parametrs[1]))
-    limit = length
+    limit = length - 1
     cursor.execute(  # delete old data from buffer
         """--sql
             DELETE FROM bufer
@@ -177,7 +178,15 @@ def store(ctx, length):
             (date_time,),
         )
         indificator = cursor.fetchone()[0]
-        execute_command(["notify-send", "--app-name=clipmanager","Copied", f"id: {indificator}, types: {types.__str__()}"]) 
+        execute_command(
+            [
+                "notify-send",
+                "--app-name=clipmanager",
+                "Copied",
+                f"id: {indificator}, types: {types.__str__()}",
+            ]
+        )
+
 
 @main.command()
 @click.pass_context
@@ -185,7 +194,7 @@ def pick(ctx):
     """Copies an entry with the specified index to the system clipboard"""
     connection = ctx.obj["connection"]
     cursor = ctx.obj["cursor"]
-    i = int(sys.stdin.buffer.read().decode("utf-8").split(".")[0])
+    index = int(sys.stdin.buffer.read().decode("utf-8").split(".")[0])
     cursor.execute(
         """--sql
                    SELECT binary_data FROM bufer
@@ -197,45 +206,40 @@ def pick(ctx):
 
 @main.command()
 @click.pass_context
-def get_data(ctx):
+def get(ctx, format: str):
     connection = ctx.obj["connection"]
     cursor = ctx.obj["cursor"]
     i = int(sys.stdin.buffer.read().decode("utf-8")[:-1])
     cursor.execute(
         """--sql
-                   SELECT binary_data FROM bufer
+                   SELECT * FROM bufer
                    WHERE id = ?;""",
         (i,),
     )
+    output = format.format(cursor.fetchone()[0][0])
     sys.stdout.write(cursor.fetchone()[0])
 
 
 @main.command()
+@click.option(
+    "-f",
+    "--format",
+    "format",
+    default="{id}. {data}",
+    help="Sets the formatting of each string using python `str.format()`, where the following variables can be used: `id`, `data`, `data_time`, `types'.",
+)
+@click.option(
+    "-s",
+    "--slice",
+    "slice",
+    default="{id}. {data}",
+    help="it looks like python slices of lists",
+)
 @click.pass_context
-def get_time(ctx):
+def get_list(ctx, format: str, slice):
     connection = ctx.obj["connection"]
     cursor = ctx.obj["cursor"]
-    i = int(sys.stdin.buffer.read().decode("utf-8")[:-1])
-    cursor.execute(
-        """--sql
-                   SELECT date_time FROM bufer
-                   WHERE id = ?;""",
-        (i,),
-    )
-    sys.stdout.write(
-        datetime.datetime.fromtimestamp(cursor.fetchone()[0])
-        .isoformat()
-        .__str__()
-        .encode("utf-8")
-    )
-
-
-@main.command()
-@click.pass_context
-def get_list(ctx):
-    connection = ctx.obj["connection"]
-    cursor = ctx.obj["cursor"]
-    cursor.execute( #get all
+    cursor.execute(  # get all
         """--sql
                    SELECT * FROM bufer
                    ORDER BY date_time DESC;"""
@@ -244,29 +248,31 @@ def get_list(ctx):
     output: bytes = b""
 
     for indificator, binary_data, date_time in results:
-        cursor.execute( #get type's names
+        cursor.execute(  # get type's names
             """--sql
                    SELECT types.name, types.subname FROM bufer_to_types, types
                    WHERE bufer_to_types.bufer_id = ? AND types.id = bufer_to_types.types_id;
                    """,
             (indificator,),
         )
+
         names = []
-        for (name, submane) in cursor.fetchall():
+        types = ""
+        for name, submane in cursor.fetchall():
             names.append(name)
+            types.append("{name}/{submane}")
+
         if "text" in names:
-            output = output + binary_data.decode("utf-8").replace("\n", "").replace(
-                "\t", "󰌒"
-            ).encode("utf-8")
-        #elif "image" in names:
-            #output = output + 
+            data = binary_data.decode("utf-8").replace("\n", "").replace("\t", "󰌒")
+        # elif "image" in names:
+        # data =
         else:
-            output = (
-                output
-                + names.__str__().encode("utf-8")
-                + datetime.datetime.fromtimestamp(date_time).isoformat(" ").encode("utf-8")
-            )
-        output = output + "\n".encode("utf-8")
+            data = names.__str__() + datetime.datetime.fromtimestamp(
+                date_time
+            ).isoformat(" ")
+        output = format.format(
+            id=indificator, data=data, date_time=date_time, types=types.__str__()
+        ).encode("utf-8")
     sys.stdout.buffer.write(output)
 
 

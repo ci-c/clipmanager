@@ -4,39 +4,28 @@
 
 sqlite clipmanager on python
 
-## Commands
- 
-Usage  
+## Usage  
 
 ### `store`
-STDIN: data
-STDOUT: -
+
+- STDIN: data
+- STDOUT: -
 
 ### `pick`
-STDIN: id
-STDOUT: - 
+- STDIN: id
+- STDOUT: - 
 
-### `get-data`
-STDIN: id
-STDOUT: data 
-
-### `get-time`
-STDIN: id
-STDOUT: time in ISO
 ### `get-list`
-STDIN: -
-STDOUT: data
-    separator: `\n` 
+- STDIN: -
+- STDOUT: data
+  - separator: `\n` 
 ### `restore`
-STDIN: -
-STDOUT: - 
-### `get-last`
-STDIN: number
-STDOUT: id 
+- STDIN: -
+- STDOUT: - 
 
 ### `remove`
-STDIN: id
-STDOUT: log 
+- STDIN: id
+- STDOUT: log 
 ### `clear`
-STDIN: -
-STDOUT: - 
+- STDIN: -
+- STDOUT: - 
