@@ -265,12 +265,13 @@ def get(ctx, format):
 @click.option(
     "-s",
     "--slice",
-    "slice",
-    default="{id}. {data}",
+    "slice_c",
+    default=[],
+    multiple=True,
     help="it looks like python slices of lists",
 )
 @click.pass_context
-def get_list(ctx, format: str | None, slice):
+def get_list(ctx, format: str | None, slice_c):
     if format == None:
         format = ctx.obj["config"]["default"]["format list"]
     connection = ctx.obj["connection"]
@@ -281,6 +282,13 @@ def get_list(ctx, format: str | None, slice):
                    ORDER BY date_time DESC;"""
     )
     results = cursor.fetchall()
+    
+    if len(slice_c) == 0:
+        pass
+    elif len(slice_c) == 1:
+        results = results[:slice_c[0]]
+    elif len(slice_c) == 2:
+        results = results[slice_c[0]:slice_c[1]]
     output: bytes = b""
 
     for indificator, binary_data, date_time in results:
