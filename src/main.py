@@ -260,7 +260,7 @@ def get(ctx, format):
     "-f",
     "--format",
     "format",
-    default="{id}. {data}",
+    default="{id}. {data}\n",
     help="Sets the formatting of each string using python `str.format()`, where the following variables can be used: `id`, `data`, `data_time`, `types'.",
 )
 @click.option(
@@ -288,9 +288,9 @@ def get_list(ctx, format: str | None, slice_c):
     if len(slice_c) == 0:
         pass
     elif len(slice_c) == 1:
-        results = results[:slice_c[0]]
+        results = results[:int(slice_c[0])]
     elif len(slice_c) == 2:
-        results = results[slice_c[0]:slice_c[1]]
+        results = results[int(slice_c[0]):int(slice_c[1])]
     output: bytes = b""
 
     for indificator, binary_data, date_time in results:
@@ -316,7 +316,7 @@ def get_list(ctx, format: str | None, slice_c):
             data = names.__str__() + datetime.datetime.fromtimestamp(
                 date_time
             ).isoformat(" ")
-        output = format.format(
+        output = output + format.format(
             id=indificator, data=data, date_time=date_time, types=types.__str__()
         ).encode("utf-8")
     sys.stdout.buffer.write(output)
