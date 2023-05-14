@@ -214,6 +214,7 @@ def pick(ctx):
 )
 @click.pass_context
 def get(ctx, format):
+    """get item by id"""
     if format == None:
         format = ctx.obj["config"]["default"]["format list"]
     connection = ctx.obj["connection"]
@@ -272,6 +273,7 @@ def get(ctx, format):
 )
 @click.pass_context
 def get_list(ctx, format: str | None, slice_c):
+    """get list of all items"""
     if format == None:
         format = ctx.obj["config"]["default"]["format list"]
     connection = ctx.obj["connection"]
@@ -324,6 +326,7 @@ def get_list(ctx, format: str | None, slice_c):
 @main.command()
 @click.pass_context
 def remove(ctx):
+    """remove by id"""
     connection = ctx.obj["connection"]
     cursor = ctx.obj["cursor"]
     index = int(sys.stdin.buffer.read().decode("utf-8").split(".")[0])
