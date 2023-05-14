@@ -6,10 +6,8 @@ import sqlite3
 import subprocess
 import sys
 import pathlib
-from base64 import standard_b64encode
 import configparser
 import click
-import string
 
 
 def execute_command(command: list[str], input_in=None, stdin=subprocess.PIPE) -> bytes:
