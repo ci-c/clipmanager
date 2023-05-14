@@ -199,25 +199,59 @@ def pick(ctx):
         """--sql
                    SELECT binary_data FROM bufer
                    WHERE id = ?;""",
-        (i,),
+        (index,),
     )
     execute_command(["wl-copy"], input_in=cursor.fetchone()[0])
 
 
 @main.command()
+@click.option(
+    "-f",
+    "--format",
+    "format",
+    default="{id}. {data}",
+    help="Sets the formatting of each string using python `str.format()`, where the following variables can be used: `id`, `data`, `data_time`, `types'.",
+)
 @click.pass_context
-def get(ctx, format: str):
+def get(ctx, format):
+    if format == None:
+        format = ctx.obj["config"]["default"]["format list"]
     connection = ctx.obj["connection"]
     cursor = ctx.obj["cursor"]
-    i = int(sys.stdin.buffer.read().decode("utf-8")[:-1])
+    index = int(sys.stdin.buffer.read().decode("utf-8").split(".")[0])
     cursor.execute(
         """--sql
                    SELECT * FROM bufer
                    WHERE id = ?;""",
-        (i,),
+        (index,),
     )
-    output = format.format(cursor.fetchone()[0][0])
-    sys.stdout.write(cursor.fetchone()[0])
+    result = cursor.fetchone()
+    output: bytes = b""
+
+    
+    cursor.execute(  # get type's names
+            """--sql
+                   SELECT types.name, types.subname FROM bufer_to_types, types
+                   WHERE bufer_to_types.bufer_id = ? AND types.id = bufer_to_types.types_id;
+                   """,
+            (result[0],),
+        )
+
+    names = []
+    types = ""
+    for name, submane in cursor.fetchall():
+        names.append(name)
+        types.append("{name}/{submane}")
+
+    if "text" in names:
+         data = binary_data.decode("utf-8").replace("\n", "").replace("\t", "󰌒")
+    # elif "image" in names:
+        # data = generate_escape_code(binary_data)
+    else:
+        data = names.__str__() + datetime.datetime.fromtimestamp(date_time).isoformat(" ")
+    output = format.format(
+            id=indificator, data=data, date_time=date_time, types=types.__str__()
+        ).encode("utf-8")
 
 
 @main.command()
@@ -236,7 +270,9 @@ def get(ctx, format: str):
     help="it looks like python slices of lists",
 )
 @click.pass_context
-def get_list(ctx, format: str, slice):
+def get_list(ctx, format: str | None, slice):
+    if format == None:
+        format = ctx.obj["config"]["default"]["format list"]
     connection = ctx.obj["connection"]
     cursor = ctx.obj["cursor"]
     cursor.execute(  # get all
@@ -276,39 +312,19 @@ def get_list(ctx, format: str, slice):
     sys.stdout.buffer.write(output)
 
 
-@main.command()
-@click.pass_context
-def restore(ctx):
-    connection = ctx.obj["connection"]
-    cursor = ctx.obj["cursor"]
-
-
-@main.command()
-@click.pass_context
-def get_last(ctx):
-    connection = ctx.obj["connection"]
-    cursor = ctx.obj["cursor"]
-
-
-@main.command()
-@click.pass_context
-def swap(ctx):
-    connection = ctx.obj["connection"]
-    cursor = ctx.obj["cursor"]
-
 
 @main.command()
 @click.pass_context
 def remove(ctx):
     connection = ctx.obj["connection"]
     cursor = ctx.obj["cursor"]
-    id = int(sys.stdin.buffer.read())
+    index = int(sys.stdin.buffer.read().decode("utf-8").split(".")[0])
     cursor.execute(
         """--sql
                    SELECT COUNT(*) FROM bufer
                    WHERE id = ?;
                    """,
-        (id,),
+        (index,),
     )
     print(f"Removed {cursor.fetchall()[0]} items.")
     cursor.execute(
@@ -316,7 +332,7 @@ def remove(ctx):
                    DELETE FROM bufer
                    WHERE id = ?;
                    """,
-        (id,),
+        (index,),
     )
     connection.commit()
 
