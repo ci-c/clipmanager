@@ -306,7 +306,7 @@ def get_list(ctx, format: str | None, slice_c):
         types = ""
         for name, submane in cursor.fetchall():
             names.append(name)
-            types.append("{name}/{submane}")
+            types.append(f"{name}/{submane}")
 
         if "text" in names:
             data = binary_data.decode("utf-8").replace("\n", "").replace("\t", "󰌒")
